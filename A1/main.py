@@ -1,4 +1,4 @@
-from dataset import Dataset
+from A1.dataset import Dataset
 
 import itertools
 import numpy as np
