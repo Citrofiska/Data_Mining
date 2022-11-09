@@ -2,8 +2,8 @@ import os
 import json
 
 class Dataset:
-    def __init__(self, PATH):
-        self.dataset_path = PATH
+    def __init__(self, path):
+        self.dataset_path = path
         self.dataset = []
 
     def read_data(self):

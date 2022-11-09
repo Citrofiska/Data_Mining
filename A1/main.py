@@ -1,84 +1,123 @@
-from A1.dataset import Dataset
+from preprocess import Dataset
 
 import itertools
 import numpy as np
 import math
-
-class Shingling: # unedited
-    def __init__(self, dataset, k):
-        self.dataset = dataset
+import time
+ 
+class Shingling: 
+    def __init__(self, k=9):
         self.k = k
 
-    def shingle(self, text):
+    def hash_shingle(self, shingle):
+        return hash(str(shingle))
+
+    def shingle_doc(self, doc):
         shingles = set()
-        for i in range(len(text) - self.k + 1):
-            shingles.add(text[i:i+self.k])
-        return shingles
+        for i in range(len(doc) - self.k + 1):
+            shingles.add(self.hash_shingle(doc[i:i+self.k]))
+        return set(shingles)
 
-    def shingle_dataset(self):
-        shingled_dataset = []
-        for data in self.dataset:
-            shingled_dataset.append(self.shingle(data))
-        return shingled_dataset
-
-    def jaccard(self, set1, set2):
-        return len(set1.intersection(set2)) / len(set1.union(set2))
-
-    def minhash(self, set1, set2):
-        return min([hash(s) for s in set1.intersection(set2)])
-
-    def lsh(self, set1, set2):
-        return hash(set1) == hash(set2)
-
-    def compare(self, set1, set2):
-        return self.jaccard(set1, set2), self.minhash(set1, set2), self.lsh(set1, set2)
-
-    def compare_dataset(self):
-        comparisons = []
-        for set1, set2 in itertools.combinations(self.shingled_dataset, 2):
-            comparisons.append(self.compare(set1, set2))
-        return comparisons
+    def shingle_dataset(self, dataset):
+        shingles_list = []
+        for doc in dataset:
+            shingles_list.append(self.shingle_doc(doc))
+        return shingles_list 
 
 class CompareSets: # compute the jaccard similarity between two sets(hashed shingles)
     def jaccard_similarity(self, set1, set2):
         return len(set1.intersection(set2)) / len(set1.union(set2))
 
-class MinHashing: # unedited
+class MinHashing: 
     def __init__(self, k=100):
         self.k = k
+        self.r = 1000000007
+        self.a = np.random.randint(1, self.r, size=k)
+        self.b = np.random.randint(1, self.r, size=k)
+        self.c = np.random.randint(1, self.r, size=k)
+
+    def hash_function(self, x, a, b, c):
+        return ((a * x + b) % c)
+
+    def compute_sig_doc(self, doc):
+        sig = np.full(self.k, math.inf)
+        for shingle in doc:
+            for i in range(self.k):
+                sig[i] = min(sig[i], self.hash_function(shingle, self.a[i], self.b[i], self.c[i]))
+        return sig
+    
+    def compute_sig_dataset(self, dataset):
+        sig_list = []
+        for doc in dataset:
+            sig_list.append(self.compute_sig_doc(doc))
+        return sig_list
 
 class CompareSignatures:
     def sig_similarity(self, sig1, sig2):
         return len([i for i in range(len(sig1)) if sig1[i] == sig2[i]]) / len(sig1)
 
 ### Optional: Implement LSH
-# class LSH:
+class LSH:
+    def __init__(self, b, r):
+        self.b = b
+        self.r = r
+        self.c = 1000000007
+        self.a = np.random.randint(1, self.c, size=b)
+        self.b = np.random.randint(1, self.c, size=b)
+
+    def hash_function(self, x, a, b):
+        return ((a * x + b) % self.c)
+
+    def compute_bands(self, sig):
+        bands = []
+        for i in range(self.b):
+            band = []
+            for j in range(self.r):
+                band.append(self.hash_function(sig[i*self.r+j], self.a[i], self.b[i]))
+            bands.append(band)
+        return bands
+
+    def compute_bands_dataset(self, sig_list):
+        bands_list = []
+        for sig in sig_list:
+            bands_list.append(self.compute_bands(sig))
+        return bands_list
+
+    def find_similar_docs(self, bands_list, threshold):
+        similar_docs = []
+        for i in range(len(bands_list)):
+            for j in range(i+1, len(bands_list)):
+                for band1 in bands_list[i]:
+                    for band2 in bands_list[j]:
+                        if band1 == band2:
+                            similar_docs.append((i, j))
+                            break
+        return similar_docs
+
 
 if __name__ == "__main__":
+    start = time.time()
     # Read in the dataset
-    dataset = Dataset('data')
-    dataset = dataset.read_data()
+    dataset_preprocessor = Dataset('dataset')
+    dataset = dataset_preprocessor.read_data()
+    dataset = dataset_preprocessor.preprocess(dataset)
+    # dataset_preprocessor.print_dataset(0)
 
     # Shingling
-    shingling = Shingling(dataset, 5)
-    shingled_dataset = shingling.shingle_dataset()
+    shingler = Shingling()
+    shingles_list = shingler.shingle_dataset(dataset)
+    # print(shingles_list[0])
 
-    # Compare the shingled documents
-    compare_sets = CompareSets()
-    comparisons = []
-    for set1, set2 in itertools.combinations(shingled_dataset, 2):
-        comparisons.append(compare_sets.jaccard_similarity(set1, set2))
+    # MinHashing
+    minhasher = MinHashing()
+    sig_list = minhasher.compute_sig_dataset(shingles_list)
+    # print(sig_list[0])
 
-    print('Jaccard Similarity:', np.mean(comparisons))
-
-    # Minhashing
-    minhashing = MinHashing()
-    minhashing = minhashing.minhash(shingled_dataset)
-
-    # Compare the minhash signatures
-    compare_signatures = CompareSignatures()
-    comparisons = []
-    for sig1, sig2 in itertools.combinations(minhashing, 2):
-        comparisons.append(compare_signatures.sig_similarity(sig1, sig2))
-
-    print('Minhash Similarity:', np.mean(comparisons))
+    # CompareSignatures
+    comparator = CompareSignatures()
+    print(comparator.sig_similarity(sig_list[0], sig_list[1]))
+    print(comparator.sig_similarity(sig_list[0], sig_list[2]))
+    print(comparator.sig_similarity(sig_list[1], sig_list[2]))
+    end = time.time()
+    print('Total runtime is ', (end - start))
+    
