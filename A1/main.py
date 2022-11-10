@@ -34,16 +34,15 @@ class MinHashing:
         self.r = 1000000007
         self.a = np.random.randint(1, self.r, size=k)
         self.b = np.random.randint(1, self.r, size=k)
-        self.c = np.random.randint(1, self.r, size=k)
 
-    def hash_function(self, x, a, b, c):
-        return ((a * x + b) % c)
+    def hash_function(self, x, a, b):
+        return ((a * x + b) % self.r) 
 
     def compute_sig_doc(self, doc):
         sig = np.full(self.k, math.inf)
         for shingle in doc:
             for i in range(self.k):
-                sig[i] = min(sig[i], self.hash_function(shingle, self.a[i], self.b[i], self.c[i]))
+                sig[i] = min(sig[i], self.hash_function(shingle, self.a[i], self.b[i]))
         return sig
     
     def compute_sig_dataset(self, dataset):
@@ -118,6 +117,14 @@ if __name__ == "__main__":
     print(comparator.sig_similarity(sig_list[0], sig_list[1]))
     print(comparator.sig_similarity(sig_list[0], sig_list[2]))
     print(comparator.sig_similarity(sig_list[1], sig_list[2]))
+
+    # LSH
+    lsh = LSH(10, 10)
+    bands_list = lsh.compute_bands_dataset(sig_list)
+    # print(bands_list[0])
+    similar_docs = lsh.find_similar_docs(bands_list, 0.5)
+    print(similar_docs)
+
     end = time.time()
     print('Total runtime is ', (end - start))
     
