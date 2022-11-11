@@ -97,10 +97,10 @@ class LSH:
 if __name__ == "__main__":
     start = time.time()
     # Read in the dataset
-    dataset_preprocessor = Dataset('dataset')
-    dataset = dataset_preprocessor.read_data()
-    dataset = dataset_preprocessor.preprocess(dataset)
-    # dataset_preprocessor.print_dataset(0)
+    dataset_preprocessor = Dataset('A1\dataset')
+    dataset_preprocessor.read_data()
+    dataset_preprocessor.preprocess()
+    dataset = dataset_preprocessor.get_dataset(5)
 
     # Shingling
     shingler = Shingling()
@@ -119,11 +119,11 @@ if __name__ == "__main__":
     print(comparator.sig_similarity(sig_list[1], sig_list[2]))
 
     # LSH
-    lsh = LSH(10, 10)
-    bands_list = lsh.compute_bands_dataset(sig_list)
-    # print(bands_list[0])
-    similar_docs = lsh.find_similar_docs(bands_list, 0.5)
-    print(similar_docs)
+    # lsh = LSH(10, 10)
+    # bands_list = lsh.compute_bands_dataset(sig_list)
+    # # print(bands_list[0])
+    # similar_docs = lsh.find_similar_docs(bands_list, 0.5)
+    # print(similar_docs)
 
     end = time.time()
     print('Total runtime is ', (end - start))
