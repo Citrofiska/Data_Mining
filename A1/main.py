@@ -6,49 +6,50 @@ import math
 import time
  
 class Shingling: 
-    def __init__(self, k=9):
+    def __init__(self, k=5):
         self.k = k
 
-    def hash_shingle(self, shingle):
-        return hash(str(shingle))
+    def hash_shingle(self, txt):
+        return hash(str(txt))
 
-    def shingle_doc(self, doc):
+    def create_doc_shingles(self, doc):
         shingles = set()
         for i in range(len(doc) - self.k + 1):
             shingles.add(self.hash_shingle(doc[i:i+self.k]))
-        return set(shingles)
+        return shingles
 
-    def shingle_dataset(self, dataset):
+    def create_dataset_shingles(self, dataset):
         shingles_list = []
         for doc in dataset:
-            shingles_list.append(self.shingle_doc(doc))
+            shingles_list.append(self.create_doc_shingles(doc))
         return shingles_list 
 
 class CompareSets: # compute the jaccard similarity between two sets(hashed shingles)
     def jaccard_similarity(self, set1, set2):
-        return len(set1.intersection(set2)) / len(set1.union(set2))
+        re = len(set1.intersection(set2)) / len(set1.union(set2))
+        return ('%.3f' % re)
 
 class MinHashing: 
-    def __init__(self, k=100):
+    def __init__(self, k=1000):
         self.k = k
         self.r = 1000000007
         self.a = np.random.randint(1, self.r, size=k)
         self.b = np.random.randint(1, self.r, size=k)
 
-    def hash_function(self, x, a, b):
+    def universal_hash(self, x, a, b):
         return ((a * x + b) % self.r) 
 
-    def compute_sig_doc(self, doc):
+    def compute_doc_sig(self, doc_shingles):
         sig = np.full(self.k, math.inf)
-        for shingle in doc:
+        for shingle in doc_shingles:
             for i in range(self.k):
-                sig[i] = min(sig[i], self.hash_function(shingle, self.a[i], self.b[i]))
+                sig[i] = min(sig[i], self.universal_hash(shingle, self.a[i], self.b[i]))
         return sig
     
-    def compute_sig_dataset(self, dataset):
+    def compute_dataset_sig(self, dataset_shingles):
         sig_list = []
-        for doc in dataset:
-            sig_list.append(self.compute_sig_doc(doc))
+        for doc_shingles in dataset_shingles:
+            sig_list.append(self.compute_doc_sig(doc_shingles))
         return sig_list
 
 class CompareSignatures:
@@ -93,37 +94,38 @@ class LSH:
                             break
         return similar_docs
 
-
 if __name__ == "__main__":
-    start = time.time()
     # Read in the dataset
-    dataset_preprocessor = Dataset('A1\dataset')
-    dataset_preprocessor.read_data()
-    dataset_preprocessor.preprocess()
-    dataset = dataset_preprocessor.get_dataset(5)
+    dataset_preprocessor = Dataset('A1\\dataset')
+    dataset = dataset_preprocessor.read_data()
+    # print(dataset[:3])
+
+    start = time.time()
 
     # Shingling
     shingler = Shingling()
-    shingles_list = shingler.shingle_dataset(dataset)
-    # print(shingles_list[0])
+    dataset_shingles = shingler.create_dataset_shingles(dataset)
+    # print(dataset_shingles[:3])
+
+    shingle_comparer = CompareSets()
+    jaccard_similarity_matrix = np.zeros((len(dataset_shingles), len(dataset_shingles)))
+    for i in range(len(dataset_shingles)):
+        for j in range(i+1, len(dataset_shingles)):
+           jaccard_similarity_matrix[i][j] = shingle_comparer.jaccard_similarity(dataset_shingles[i], dataset_shingles[j])
+    print('jaccard_similarity_matrix in main: \n', jaccard_similarity_matrix)
 
     # MinHashing
-    minhasher = MinHashing()
-    sig_list = minhasher.compute_sig_dataset(shingles_list)
-    # print(sig_list[0])
+    Minhasher = MinHashing()
+    dataset_sig = Minhasher.compute_dataset_sig(dataset_shingles)
+    # print(dataset_sig[:3])
 
     # CompareSignatures
-    comparator = CompareSignatures()
-    print(comparator.sig_similarity(sig_list[0], sig_list[1]))
-    print(comparator.sig_similarity(sig_list[0], sig_list[2]))
-    print(comparator.sig_similarity(sig_list[1], sig_list[2]))
-
-    # LSH
-    # lsh = LSH(10, 10)
-    # bands_list = lsh.compute_bands_dataset(sig_list)
-    # # print(bands_list[0])
-    # similar_docs = lsh.find_similar_docs(bands_list, 0.5)
-    # print(similar_docs)
+    sig_comparator = CompareSignatures()
+    sig_similarity_matrix = np.zeros((len(dataset_sig), len(dataset_sig)))
+    for i in range(len(dataset_sig)):
+        for j in range(i+1, len(dataset_sig)):
+            sig_similarity_matrix[i][j] = sig_comparator.sig_similarity(dataset_sig[i], dataset_sig[j])
+    print('signature_similarity_matrix in main: \n', sig_similarity_matrix)
 
     end = time.time()
     print('Total runtime is ', (end - start))
