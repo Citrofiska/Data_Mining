@@ -30,7 +30,7 @@ class CompareSets: # compute the jaccard similarity between two sets(hashed shin
         return ('%.3f' % re)
 
 class MinHashing: 
-    def __init__(self, k=1000):
+    def __init__(self, k=100):
         self.k = k
         self.r = 1000000007
         self.a = np.random.randint(1, self.r, size=k)
@@ -39,12 +39,12 @@ class MinHashing:
     def universal_hash(self, x, a, b):
         return ((a * x + b) % self.r) 
 
-    def compute_doc_sig(self, doc_shingles):
+    def compute_doc_sig(self, doc_shingles): # perform minhashing on a document
         sig = np.full(self.k, math.inf)
         for shingle in doc_shingles:
             for i in range(self.k):
                 sig[i] = min(sig[i], self.universal_hash(shingle, self.a[i], self.b[i]))
-        return sig
+        return sig # the min shingle value for each hash function
     
     def compute_dataset_sig(self, dataset_shingles):
         sig_list = []
@@ -58,41 +58,39 @@ class CompareSignatures:
 
 ### Optional: Implement LSH
 class LSH:
-    def __init__(self, b, r):
-        self.b = b
-        self.r = r
-        self.c = 1000000007
-        self.a = np.random.randint(1, self.c, size=b)
-        self.b = np.random.randint(1, self.c, size=b)
+    def __init__(self, bands=10, rows=10):
+        self.bands = bands
+        self.rows = rows
+        self.t = np.power(1/bands, 1/rows)
+        self.p = 1000000007
+        self.a = np.random.randint(1, self.p, size=(bands, rows))
+        self.b = np.random.randint(1, self.p, size=(bands, rows))
 
-    def hash_function(self, x, a, b):
-        return ((a * x + b) % self.c)
+    def universal_hash(self, x, a, b):
+        return ((a * x + b) % self.p)
 
-    def compute_bands(self, sig):
-        bands = []
-        for i in range(self.b):
-            band = []
-            for j in range(self.r):
-                band.append(self.hash_function(sig[i*self.r+j], self.a[i], self.b[i]))
-            bands.append(band)
-        return bands
+    def compute_doc_buckets(self, doc_sig):
+        buckets = []
+        for i in range(self.bands):
+            buckets.append(self.universal_hash(doc_sig[i*self.rows:(i+1)*self.rows], self.a[i], self.b[i]))
+        return buckets
 
-    def compute_bands_dataset(self, sig_list):
-        bands_list = []
-        for sig in sig_list:
-            bands_list.append(self.compute_bands(sig))
-        return bands_list
+    def compute_dataset_buckets(self, dataset_sig):
+        buckets_list = []
+        for doc_sig in dataset_sig:
+            buckets_list.append(self.compute_doc_buckets(doc_sig))
+        return buckets_list
 
-    def find_similar_docs(self, bands_list, threshold):
-        similar_docs = []
-        for i in range(len(bands_list)):
-            for j in range(i+1, len(bands_list)):
-                for band1 in bands_list[i]:
-                    for band2 in bands_list[j]:
-                        if band1 == band2:
-                            similar_docs.append((i, j))
-                            break
-        return similar_docs
+    def compute_candidates(self, buckets_list):
+        candidate_pairs = set()
+        for i in range(len(buckets_list)):
+            for j in range(i+1, len(buckets_list)):
+                for ind in range(self.bands):
+                    if buckets_list[i][ind].all() == buckets_list[j][ind].all():
+                        candidate_pairs.add((i, j))
+                        break
+
+        return candidate_pairs
 
 if __name__ == "__main__":
     # Read in the dataset
@@ -112,7 +110,7 @@ if __name__ == "__main__":
     for i in range(len(dataset_shingles)):
         for j in range(i+1, len(dataset_shingles)):
            jaccard_similarity_matrix[i][j] = shingle_comparer.jaccard_similarity(dataset_shingles[i], dataset_shingles[j])
-    print('jaccard_similarity_matrix in main: \n', jaccard_similarity_matrix)
+    print('jaccard_similarity_matrix: \n', jaccard_similarity_matrix)
 
     # MinHashing
     Minhasher = MinHashing()
@@ -125,7 +123,18 @@ if __name__ == "__main__":
     for i in range(len(dataset_sig)):
         for j in range(i+1, len(dataset_sig)):
             sig_similarity_matrix[i][j] = sig_comparator.sig_similarity(dataset_sig[i], dataset_sig[j])
-    print('signature_similarity_matrix in main: \n', sig_similarity_matrix)
+    print('signature_similarity_matrix: \n', sig_similarity_matrix)
+
+    # LSH
+    lsh = LSH()
+    candidate_pairs = lsh.compute_candidates(lsh.compute_dataset_buckets(dataset_sig))
+
+    threshold = 0.2
+
+    for pair in candidate_pairs:
+        if jaccard_similarity_matrix[pair[0]][pair[1]] >= threshold:
+            print('Candidate pair: ', pair, '| Jaccard similarity: ', 
+              jaccard_similarity_matrix[pair[0]][pair[1]], '| Signature similarity: ', sig_similarity_matrix[pair[0]][pair[1]])
 
     end = time.time()
     print('Total runtime is ', (end - start))
